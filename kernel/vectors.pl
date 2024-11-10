@@ -11,10 +11,10 @@ print ".globl alltraps\n";
 for(my $i = 0; $i < 256; $i++){
     print ".globl vector$i\n";
     print "vector$i:\n";
-    if(!($i == 8 || ($i >= 10 && $i <= 14) || $i == 17)){
+    if(!($i == 8 || ($i >= 10 && $i <= 14) || $i == 17)){ # processor pushes error code instead
         print "  pushl \$0\n";
     }
-    print "  pushl \$$i\n";
+    print "  pushl \$$i\n"; # trap number
     print "  jmp alltraps\n";
 }
 

@@ -14,7 +14,7 @@ initlock(struct spinlock *lk, char *name)
 {
   lk->name = name;
   lk->locked = 0;
-  lk->cpu = 0;
+  lk->cpu = 0; // no cpu
 }
 
 // Acquire the lock.
@@ -109,7 +109,7 @@ pushcli(void)
   eflags = readeflags();
   cli();
   if(mycpu()->ncli == 0)
-    mycpu()->intena = eflags & FL_IF;
+    mycpu()->intena = eflags & FL_IF; // save whether interrupts were enabled before
   mycpu()->ncli += 1;
 }
 

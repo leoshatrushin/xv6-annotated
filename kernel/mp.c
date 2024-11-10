@@ -26,7 +26,7 @@ sum(uchar *addr, int len)
   return sum;
 }
 
-// Look for an MP structure in the len bytes at addr.
+// Look for an MP structure in the len bytes at pa 'a'.
 static struct mp*
 mpsearch1(uint a, int len)
 {
@@ -34,17 +34,19 @@ mpsearch1(uint a, int len)
 
   addr = P2V(a);
   e = addr+len;
-  for(p = addr; p < e; p += sizeof(struct mp))
+  for(p = addr; p < e; p += sizeof(struct mp)) {
+    // check signature and checksum
     if(memcmp(p, "_MP_", 4) == 0 && sum(p, sizeof(struct mp)) == 0)
       return (struct mp*)p;
+  }
   return 0;
 }
 
 // Search for the MP Floating Pointer Structure, which according to the
 // spec is in one of the following three locations:
-// 1) in the first KB of the EBDA;
+// 1) in the first KB of the EBDA (Extended BIOS Data Area);
 // 2) in the last KB of system base memory;
-// 3) in the BIOS ROM between 0xE0000 and 0xFFFFF.
+// 3) in the BIOS ROM between 0xF0000 and 0xFFFFF.
 static struct mp*
 mpsearch(void)
 {
@@ -52,12 +54,12 @@ mpsearch(void)
   uint p;
   struct mp *mp;
 
-  bda = (uchar *) P2V(0x400);
-  if((p = ((bda[0x0F]<<8)| bda[0x0E]) << 4)){
+  bda = (uchar *) P2V(0x400); // BDA located at 0x400
+  if((p = ((bda[0x0F]<<8)| bda[0x0E]) << 4)){ // 16-bit EDBA segment address <<4 to convert to linear address
     if((mp = mpsearch1(p, 1024)))
       return mp;
   } else {
-    p = ((bda[0x14]<<8)|bda[0x13])*1024;
+    p = ((bda[0x14]<<8)|bda[0x13])*1024; // base memory size in KB *1024 to convert to bytes (after is EDBA)
     if((mp = mpsearch1(p-1024, 1024)))
       return mp;
   }
@@ -66,8 +68,6 @@ mpsearch(void)
 
 // Search for an MP configuration table.  For now,
 // don't accept the default configurations (physaddr == 0).
-// Check for correct signature, calculate the checksum and,
-// if correct, check the version.
 // To do: check extended table checksum.
 static struct mpconf*
 mpconfig(struct mp **pmp)
@@ -78,6 +78,7 @@ mpconfig(struct mp **pmp)
   if((mp = mpsearch()) == 0 || mp->physaddr == 0)
     return 0;
   conf = (struct mpconf*) P2V((uint) mp->physaddr);
+  // check signature, checksum and version
   if(memcmp(conf, "PCMP", 4) != 0)
     return 0;
   if(conf->version != 1 && conf->version != 4)

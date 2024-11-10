@@ -22,8 +22,14 @@ initsleeplock(struct sleeplock *lk, char *name)
 void
 acquiresleep(struct sleeplock *lk)
 {
+  // make sure sleep-lock acquisition is atomic
+  // also makes sure interrupts are disabled during this function and reenabled
+  // does add some overhead in the form of spinning until the lock is free, but the code here should be short
+  // what we really want to do is avoid spinning once the sleep-lock is acquired, i.e. spinning after the
+  // function is done
   acquire(&lk->lk);
   while (lk->locked) {
+    // must always be called inside a while loop to make sure we don't miss any wakeup calls
     sleep(lk, &lk->lk);
   }
   lk->locked = 1;

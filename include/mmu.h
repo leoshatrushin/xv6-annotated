@@ -22,28 +22,36 @@
 #define NSEGS     6
 
 #ifndef __ASSEMBLER__
-// Segment Descriptor
+// Segment Descriptor. GDTR points to an array of these.
 struct segdesc {
   uint lim_15_0 : 16;  // Low bits of segment limit
   uint base_15_0 : 16; // Low bits of segment base address
-  uint base_23_16 : 8; // Middle bits of segment base address
+  uint base_23_16 : 8; // Mid bits of segment base address
   uint type : 4;       // Segment type (see STS_ constants)
-  uint s : 1;          // 0 = system, 1 = application
-  uint dpl : 2;        // Descriptor Privilege Level
+                       // non-system descriptors: bit 3 = data descriptor vs code desctiptor
+                       // data descriptor: bit 2 = expand-down limit (useful for stack selectors)
+                       // data descriptor: bit 1 = allow writes
+                       // code descriptor: bit 2 = conforming, tricky subject, allow user code to run
+                       // with kernel selectors under certain circumstances
+                       // code descriptor: bit 1 = allow reads as data (e.g. access inline constants)
+                       // bit 0 = communicate 'has been accessed' in some way to the OS, abandoned use
+  uint s : 1;          // 0 = system-type, 1 = application-type
+  uint dpl : 2;        // DLP (Descriptor Privilege Level); code ring allowed to use the segment
   uint p : 1;          // Present
   uint lim_19_16 : 4;  // High bits of segment limit
-  uint avl : 1;        // Unused (available for software use)
-  uint rsv1 : 1;       // Reserved
-  uint db : 1;         // 0 = 16-bit segment, 1 = 32-bit segment
-  uint g : 1;          // Granularity: limit scaled by 4K when set
+  uint avl : 1;        // Unused (available for use, e.g. with hardware task-switching)
+  uint rsv1 : 1;       // Long mode
+  uint db : 1;         // Misc, depends on exact descriptor type, e.g. 16 vs 32-bit, can clear in long mode
+  uint g : 1;          // Granularity: if set, limit scaled by 4K (0x1000)
   uint base_31_24 : 8; // High bits of segment base address
 };
 
-// Normal segment
+// Normal segment descriptor
 #define SEG(type, base, lim, dpl) (struct segdesc)    \
 { ((lim) >> 12) & 0xffff, (uint)(base) & 0xffff,      \
   ((uint)(base) >> 16) & 0xff, type, 1, dpl, 1,       \
   (uint)(lim) >> 28, 0, 0, 1, 1, (uint)(base) >> 24 }
+// 16-bit segment descriptor
 #define SEG16(type, base, lim, dpl) (struct segdesc)  \
 { (lim) & 0xffff, (uint)(base) & 0xffff,              \
   ((uint)(base) >> 16) & 0xff, type, 1, dpl, 1,       \
@@ -144,17 +152,32 @@ struct taskstate {
   ushort iomb;       // I/O map base address
 };
 
+// 64-bit descriptor
+struct interrupt_descriptor {
+  uint off_15_0 : 16;   // low bits of handler segment offset (address)
+  uint cs : 16;         // code selector to load into %cs before running handler (i.e. kernel code selector)
+  uint ist : 8;         // 0 to disable IST mechanism, used with TSS to force CPU to switch stacks, useful
+                        // for edge cases like NMIs
+  uint type : 4;        // Trap gate (0b1110) or interrupt gate (0b1111)
+                        // Only difference is interrupt gate clears IF
+  uint rsv : 1;         // Reserved
+  uint dpl : 2;         // DLP (Descriptor Privilege Level) - ring allowed to trigger via software (else #GP)
+  uint p : 1;           // Present
+  uint off_31_16 : 16;  // mid bits of handler segment offset (address)
+  uint off_63_32 : 32;  // high bits of handler segment offset (address)
+};
+
 // Gate descriptors for interrupts and traps
 struct gatedesc {
-  uint off_15_0 : 16;   // low 16 bits of offset in segment
-  uint cs : 16;         // code segment selector
+  uint off_15_0 : 16;   // low bits of handler segment offset
+  uint cs : 16;         // code selector to load into %cs before running handler (kernel code)
   uint args : 5;        // # args, 0 for interrupt/trap gates
   uint rsv1 : 3;        // reserved(should be zero I guess)
   uint type : 4;        // type(STS_{IG32,TG32})
-  uint s : 1;           // must be 0 (system)
+  uint s : 1;           // must be 0 (system), 1 is application flag
   uint dpl : 2;         // descriptor(meaning new) privilege level
-  uint p : 1;           // Present
-  uint off_31_16 : 16;  // high bits of offset in segment
+  uint p : 1;           // Present flag
+  uint off_31_16 : 16;  // high 16 bits of offset in segment
 };
 
 // Set up a normal interrupt/trap gate descriptor.

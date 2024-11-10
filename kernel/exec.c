@@ -7,6 +7,7 @@
 #include "x86.h"
 #include "elf.h"
 
+// invokes the loader
 int
 exec(char *path, char **argv)
 {

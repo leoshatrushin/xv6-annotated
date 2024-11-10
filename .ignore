@@ -1,0 +1,3 @@
+venv/
+kernel/kernel.asm
+kernel/kernel.sym

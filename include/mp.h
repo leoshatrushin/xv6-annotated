@@ -1,20 +1,21 @@
-// See MultiProcessor Specification Version 1.[14]
+// See MultiProcessor Specification Version 1.[4]
 
 struct mp {             // floating pointer
   uchar signature[4];           // "_MP_"
   void *physaddr;               // phys addr of MP config table
   uchar length;                 // 1
-  uchar specrev;                // [14]
+  uchar specrev;                // [4]
   uchar checksum;               // all bytes must add up to 0
   uchar type;                   // MP system config type
-  uchar imcrp;
-  uchar reserved[3];
+  uchar imcrp; // mp feature byte 2 - bit 7 set when IMCR present and PIC Mode implemented
+               // otherwise Vitaual Wire Mode implemented
+  uchar reserved[3]; // mp feature bytes 3-5
 };
 
 struct mpconf {         // configuration table header
   uchar signature[4];           // "PCMP"
   ushort length;                // total table length
-  uchar version;                // [14]
+  uchar version;                // [4]
   uchar checksum;               // all bytes must add up to 0
   uchar product[20];            // product id
   uint *oemtable;               // OEM table pointer
@@ -29,7 +30,7 @@ struct mpconf {         // configuration table header
 struct mpproc {         // processor table entry
   uchar type;                   // entry type (0)
   uchar apicid;                 // local APIC id
-  uchar version;                // local APIC verison
+  uchar version;                // local APIC version
   uchar flags;                  // CPU flags
     #define MPBOOT 0x02           // This proc is the bootstrap processor.
   uchar signature[4];           // CPU signature

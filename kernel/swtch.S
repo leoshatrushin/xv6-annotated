@@ -1,29 +1,35 @@
 # Context switch
 #
 #   void swtch(struct context **old, struct context *new);
-# 
-# Save the current registers on the stack, creating
-# a struct context, and save its address in *old.
-# Switch stacks to new and pop previously-saved registers.
 
+# Each timer interrupt will force the current process to yield the processor and perform a context
+# switch back into the scheduler so it can run the next available process
+
+# Current stack layout
+# 8(%esp) - struct context *new
+# 4(%esp) - struct context **old
+# 0(%esp) - return address %eip
 .globl swtch
 swtch:
-  movl 4(%esp), %eax
-  movl 8(%esp), %edx
+  movl 4(%esp), %eax # save 'old' into caller-saved %eax
+  movl 8(%esp), %edx # save 'new' into caller-saved %ecx (%edx is last caller-saved register)
 
-  # Save old callee-saved registers
+  # save context at the top of the stack
+  # order must match layout of 'struct context'
+  # %eip is already saved
   pushl %ebp
   pushl %ebx
   pushl %esi
   pushl %edi
 
-  # Switch stacks
-  movl %esp, (%eax)
-  movl %edx, %esp
+  # save pointer to this old struct context
+  movl %esp, (%eax) # *old = %esp (dereference using ())
+  # switch stacks, new context is at the top
+  movl %edx, %esp # %esp = new
 
-  # Load new callee-saved registers
+  # Restore context
   popl %edi
   popl %esi
   popl %ebx
   popl %ebp
-  ret
+  ret # pop %eip and resume execution

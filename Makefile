@@ -33,10 +33,10 @@ OBJS = \
 	$K/vm.o\
 
 # Cross-compiling (e.g., on Mac OS X)
-# TOOLPREFIX = i386-jos-elf
+TOOLPREFIX = i386-elf-
 
 # Using native tools (e.g., on X86 Linux)
-#TOOLPREFIX = 
+# TOOLPREFIX = 
 
 # Try to infer the correct TOOLPREFIX if not set
 ifndef TOOLPREFIX
@@ -80,7 +80,7 @@ AS = $(TOOLPREFIX)gas
 LD = $(TOOLPREFIX)ld
 OBJCOPY = $(TOOLPREFIX)objcopy
 OBJDUMP = $(TOOLPREFIX)objdump
-CFLAGS = -fno-pic -static -fno-builtin -fno-strict-aliasing -O2 -Wall -MD -ggdb -m32 -Werror -fno-omit-frame-pointer
+CFLAGS = -fno-pic -static -fno-builtin -fno-strict-aliasing -Og -Wall -MD -ggdb -m32 -Werror -fno-omit-frame-pointer
 CFLAGS += $(shell $(CC) -fno-stack-protector -E -x c /dev/null >/dev/null 2>&1 && echo -fno-stack-protector)
 ASFLAGS = -m32 -gdwarf-2 -Wa,-divide
 # FreeBSD ld wants ``elf_i386_fbsd''
@@ -95,6 +95,7 @@ CFLAGS += -fno-pie -nopie
 endif
 
 
+# bootloader compiled separately from kernel code, but put in the same virtual disk
 xv6.img: $K/bootblock $K/kernel
 	dd if=/dev/zero of=xv6.img count=10000
 	dd if=$K/bootblock of=xv6.img conv=notrunc
@@ -128,6 +129,7 @@ $K/kernel: $(OBJS) $K/entry.o entryother initcode $K/kernel.ld
 $K/vectors.S: $K/vectors.pl
 	./$K/vectors.pl > $K/vectors.S
 
+# all user programs compiled together with the user library
 ULIB = $U/ulib.o $U/usys.o $U/printf.o $U/umalloc.o
 
 _%: %.o $(ULIB)
@@ -166,7 +168,12 @@ UPROGS=\
 	$U/_usertests\
 	$U/_wc\
 	$U/_zombie\
+	$U/_hello\
+	$U/_sleep\
 
+# bootloader and kernel code are compiled as single units, user programs are compiled separately
+# thus no way for a user program to call any kernel code - the linker wouldn't be able to match symbols
+# OSes provide libraries for users to include and call in their programs - usys.S
 fs.img: fs/mkfs README $(UPROGS)
 	fs/mkfs fs.img README $(UPROGS)
 
@@ -189,6 +196,7 @@ QEMUGDB = $(shell if $(QEMU) -help | grep -q '^-gdb'; \
 ifndef CPUS
 CPUS := 2
 endif
+# use fs.img and xv6.img as virtual hard drives with xv6.img as disk number 0 and fs.img as disk number 1
 QEMUOPTS = -drive file=fs.img,index=1,media=disk,format=raw -drive file=xv6.img,index=0,media=disk,format=raw -smp $(CPUS) -m 512 $(QEMUEXTRA)
 
 qemu: fs.img xv6.img

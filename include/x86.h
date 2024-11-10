@@ -12,8 +12,13 @@ inb(ushort port)
 static inline void
 insl(int port, void *addr, int cnt)
 {
+  // cld - clear direction flag DF in CPU FLAGS register
+  // ensures string operations auto-increment the destination pointer EDI
+  // rep - repeat instruction ECX times (ECX auto-decrements)
+  // rep works with specific instructions that operate on strings or blocks - in, out, cmp (compare memory), sca (compare memory and byte), lod, sto, mov
+  // insl uses EDX as port number
   asm volatile("cld; rep insl" :
-               "=D" (addr), "=c" (cnt) :
+               "=D" (addr), "=c" (cnt) : // final values of EDI and ECX
                "d" (port), "0" (addr), "1" (cnt) :
                "memory", "cc");
 }
@@ -39,6 +44,7 @@ outsl(int port, const void *addr, int cnt)
                "cc");
 }
 
+// store AL to EDI ECX times
 static inline void
 stosb(void *addr, int data, int cnt)
 {
@@ -91,6 +97,7 @@ ltr(ushort sel)
   asm volatile("ltr %0" : : "r" (sel));
 }
 
+// reads eflags register
 static inline uint
 readeflags(void)
 {
@@ -105,23 +112,27 @@ loadgs(ushort v)
   asm volatile("movw %0, %%gs" : : "r" (v));
 }
 
+// clear interrupt flag
 static inline void
 cli(void)
 {
   asm volatile("cli");
 }
 
+// set interrupt flag
 static inline void
 sti(void)
 {
   asm volatile("sti");
 }
 
+// atomic exchange operation
 static inline uint
 xchg(volatile uint *addr, uint newval)
 {
   uint result;
 
+  // lock prefix ensures atomicity
   // The + in "+m" denotes a read-modify-write operand.
   asm volatile("lock; xchgl %0, %1" :
                "+m" (*addr), "=a" (result) :
@@ -146,9 +157,9 @@ lcr3(uint val)
 
 //PAGEBREAK: 36
 // Layout of the trap frame built on the stack by the
-// hardware and by trapasm.S, and passed to trap().
+// hardware and trapasm.S, and passed to trap().
 struct trapframe {
-  // registers as pushed by pusha
+  // general-purpose registers as pushed by pusha
   uint edi;
   uint esi;
   uint ebp;
@@ -169,7 +180,7 @@ struct trapframe {
   ushort padding4;
   uint trapno;
 
-  // below here defined by x86 hardware
+  // below here defined by x86 hardware (i.e. pushed by processor before calling handler function in IDT)
   uint err;
   uint eip;
   ushort cs;

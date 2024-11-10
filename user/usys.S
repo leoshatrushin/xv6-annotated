@@ -1,6 +1,8 @@
 #include "syscall.h"
 #include "traps.h"
 
+# macros must be defined on a single line, hence we use backslash
+# double hash is the token pasting operator
 #define SYSCALL(name) \
   .globl name; \
   name: \

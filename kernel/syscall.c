@@ -8,12 +8,16 @@
 #include "syscall.h"
 
 // User code makes a system call with INT T_SYSCALL.
-// System call number in %eax.
+// x86 convention - system call number in %eax.
 // Arguments on the stack, from the user call to the C
 // library system call function. The saved user %esp points
 // to a saved program counter, and then the first argument.
 
 // Fetch the int at addr from the current process.
+// can use an addr in the lower half of memory because traps don't perform a full context switch
+// i.e. we're still using the process's page directory even though we're in ring 0
+// if we switched to a kernel page direcotry, we'd have to call walkpgdir() or uva2ka() to figure out
+// the corresponding kernel virtual address for addr
 int
 fetchint(uint addr, int *ip)
 {
@@ -24,6 +28,19 @@ fetchint(uint addr, int *ip)
   *ip = *(int*)(addr);
   return 0;
 }
+// Digression on dereferencing a null pointer
+// If the kernel is using kpgdir as a page directory, address 0 isn't mapped to anything
+// so when the paging hardware goes to translate it to a physical address, it would fail with a GPF
+// trap handler code would fall under 'default' case, if statement there would determine it originated
+// in the kernel, print a message to the console, and panic
+// If the kernel is using a process's page directory, address 0 is in the lower half of memory, so it's
+// a user virtual address. The result depends on if that page and its page table are mapped in the
+// process's page directory. If not mapped, GPT is generated, 'default' case prints error message to
+// the console, and the process is marked to be killed
+// Thus null could generate "denial of service" vulnerabilities
+// Just like uva2ka(), fetchint() is only called by one other function, so in fact it will never be passed
+// a null pointer
+// But if you add any kernel code that calls this function, you must be very careful
 
 // Fetch the nul-terminated string at addr from the current process.
 // Doesn't actually copy the string - just sets *pp to point at it.
@@ -44,6 +61,7 @@ fetchstr(uint addr, char **pp)
   }
   return -1;
 }
+// again, we dereference pp and addr without null checks. Be careful of using this function
 
 // Fetch the nth 32-bit system call argument.
 int
